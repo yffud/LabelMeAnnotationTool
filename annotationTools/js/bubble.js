@@ -49,7 +49,85 @@ function CreatePopupBubble(left,top,innerHTML,dom_attach) {
     document.getElementById(bubble_name).style.top = (top) + 'px';
   }
   setTimeout("$('#objEnter').focus();",1);
+  if (autocomplete_mode){
+    addAutoComplete();
+  }
   return bubble_name;
+}
+function addAutoComplete(){
+	var tags = [];
+	$.getScript("./annotationTools/js/wordnet_data.js", function(){
+    var NoResultsLabel = 'No results found';
+		tags = data_wordnet;
+		$( "#objEnter" ).autocomplete({
+        
+			  source: function( request, response ) {
+          if (request.term.length > 0){
+            var matcher2 = new RegExp( "^" + $.ui.autocomplete.escapeRegex( request.term )+'$', "i" );
+    			  var matcher = new RegExp( "^" + $.ui.autocomplete.escapeRegex( request.term ), "i" );
+            res = $.grep( tags, function( item ){
+              aux = matcher.test( item );
+              return aux
+            }); 
+            res2 = $.grep( tags, function( item ){
+              aux = matcher2.test( item );
+              return aux
+            });
+            if (res2.length == 0){
+              $("#objEnter").css('color', 'red');
+            }
+            else {
+              $("#objEnter").css('color', 'black');
+            }
+            if (res.length == 0){
+              res = [NoResultsLabel];
+            }
+    			  response(res);
+          }
+          else {
+            $("#objEnter").css('color', 'black');
+            response(false);
+          }
+        },
+        // response: function(event, ui){
+        //   console.log(this.term);
+        //   if (ui.content.length > 0 && ui.content[0].label == NoResultsLabel) {
+        //     //$("#empty-message").text("No results found");
+        //     $("#objEnter").css('color', 'red');
+        //   }
+        //   else {
+        //     $("#objEnter").css('color', 'black');
+        //   }
+        // },
+        select: function (event, ui) {
+            $("#objEnter").css('color', 'black');
+            if (ui.item.label === NoResultsLabel || event.which == 13) {
+                event.preventDefault();
+            }
+        },
+        focus: function (event, ui) {
+            if (ui.item.label === NoResultsLabel) {
+                event.preventDefault();
+            }
+        },
+
+        minLength: 0  
+		}).data("ui-autocomplete")._renderItem =  function( ul, item ) {
+            // Replace the matched text with a custom span. This
+            // span uses the class found in the "highlightClass" option.
+             var newText = String(item.value).replace(
+                new RegExp("^" + $.ui.autocomplete.escapeRegex( this.term ), "i"),
+                "<strong>$&</strong>");
+            return $("<li></li>")
+                .data("ui-item.autocomplete", item)
+                .append("<a>" + newText + "</a>")
+                .appendTo(ul);
+              
+          };
+    $(".ui-autocomplete").css('font-size', '11px')
+    $(".ui-autocomplete").css('font-family', 'BlinkMacSystemFont')
+	});	
+
 }
 
 /** This function creates the close button at the top-right corner of the popup bubble
@@ -141,6 +219,9 @@ function GetPopupFormDraw(scribble_form) {
   // Done button:
   html_str += '<input type="button" value="Done" title="Press this button after you have provided all the information you want about the object." onclick="main_handler.SubmitQuery();" tabindex="0" />';
   
+  // Delete button:
+  html_str += '<input type="button" style="float:right" value="Delete" title="Press this button if you wish to delete the polygon." onclick="main_handler.WhatIsThisObjectDeleteButton();" tabindex="0" />';
+  html_str += '<br />' 
   // Undo close button/Keep editting
   if (!scribble_form) if (!bounding_box) html_str += '<input type="button" value="Undo close" title="Press this button if you accidentally closed the polygon. You can continue adding control points." onclick="UndoCloseButton();" tabindex="0" />';
   else if (scribble_form) html_str += '<input type="button" value="Edit Scribble" title="Press this button if to keep adding scribbles." onclick="KeepEditingScribbles();" tabindex="0" />';
@@ -148,9 +229,6 @@ function GetPopupFormDraw(scribble_form) {
   if (add_parts_to == null) html_str += '<input type="button" value="Add parts" title="Press this button if you want to start adding parts" onclick="main_handler.StartAddParts();" tabindex="0" />';
   else html_str += '<input type="button" value="Stop parts" title="Press this button if you want to stop adding parts" onclick="main_handler.StopAddParts();" tabindex="0" />';
     
-  // Delete button:
-  html_str += '<input type="button" value="Delete" title="Press this button if you wish to delete the polygon." onclick="main_handler.WhatIsThisObjectDeleteButton();" tabindex="0" />';
-  
   return html_str;
 }
 
@@ -188,6 +266,8 @@ function GetPopupFormEdit(anno) {
   /*************************************************************/
   // Scribble: if anno.GetType() != 0 then scribble mode:
 
+  // Delete button:
+  html_str += '<input type="button" style="float:right" value="Delete" title="Press this button if you wish to delete the polygon." onclick="main_handler.EditBubbleDeleteButton();" tabindex="0" /><br />';
   // Adjust polygon button:
   if (anno.GetType() == 0) {
     html_str += '<input type="button" value="Adjust polygon" title="Press this button if you wish to update the polygon\'s control points." onclick="javascript:AdjustPolygonButton();" />';
@@ -200,8 +280,6 @@ function GetPopupFormEdit(anno) {
   
   // Add parts/Stop adding parts
   if (add_parts_to == null) html_str += '<input type="button" value="Add parts" title="Press this button if you want to start adding parts" onclick="main_handler.StartAddParts();" tabindex="0" />';
-  // Delete button:
-  html_str += '<input type="button" value="Delete" title="Press this button if you wish to delete the polygon." onclick="main_handler.EditBubbleDeleteButton();" tabindex="0" />';
   
   return html_str;
 }
@@ -214,20 +292,20 @@ function GetPopupFormEdit(anno) {
 function HTMLobjectBox(obj_name) {
   var html_str="";
   
-  html_str += '<input name="objEnter" id="objEnter" type="text" style="width:260px;" tabindex="0" value="'+obj_name+'" title="Enter the object\'s name here. Avoid application specific names, codes, long descriptions. Use a name you think other people would agree in using. "';
+  html_str += '<input name="objEnter" id="objEnter" type="text" style="width:220px;" tabindex="0" value="'+obj_name+'" title="Enter the object\'s name here. Avoid application specific names, codes, long descriptions. Use a name you think other people would agree in using. "';
   
-  html_str += ' onkeyup="var c;if(event.keyCode)c=event.keyCode;if(event.which)c=event.which;if(c==13)';
-        
+  html_str += ' onkeyup="var c;if(event.keyCode)c=event.keyCode;if(event.which)c=event.which;if(c==13){';
+  //html_str += 'console.log($(".ui-autocomplete.ui-widget:visible").length);';
   // if obj_name is empty it means that the box is being created
   if (obj_name=='') {
     // If press enter, then submit; if press ESC, then delete:
-    if (video_mode) html_str += 'main_media.SubmitObject();if(c==27) main_handler.WhatIsThisObjectDeleteButton();" ';
-    else html_str += 'main_handler.SubmitQuery();if(c==27)main_handler.WhatIsThisObjectDeleteButton();" ';
+    if (video_mode) html_str += 'main_media.SubmitObject()};if(c==27) main_handler.WhatIsThisObjectDeleteButton();" ';
+    else html_str += 'main_handler.SubmitQuery()};if(c==27)main_handler.WhatIsThisObjectDeleteButton();" ';
   }
   else {
     // If press enter, then submit:
-    if (video_mode) html_str += 'main_media.SubmitEditObject();" ';
-    else html_str += 'main_handler.SubmitEditLabel();" ';
+    if (video_mode) html_str += 'main_media.SubmitEditObject()};" ';
+    else html_str += 'main_handler.SubmitEditLabel()};" ';
   }
   
   // if there is a list of objects, we need to habilitate the list
@@ -281,7 +359,7 @@ function HTMLoccludedBox(occluded) {
 
 // Boxes to enter attributes
 function HTMLattributesBox(attList) {    
-  return '<textarea name="attributes" id="attributes" type="text" style="width:260px; height:3em;" tabindex="0" title="Enter a comma separated list of attributes, adjectives or other object properties">'+attList+'</textarea>';
+  return '<textarea name="attributes" id="attributes" type="text" style="width:220px; height:3em;" tabindex="0" title="Enter a comma separated list of attributes, adjectives or other object properties">'+attList+'</textarea>';
 }
 
 

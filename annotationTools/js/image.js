@@ -16,6 +16,7 @@ function image(id) {
     // *******************************************
     
     this.file_info = new file_info();
+    this.contrast = 128;
     this.id = id;
     this.im = document.getElementById(this.id);
     this.width_orig;
@@ -41,8 +42,15 @@ function image(id) {
         document.getElementById('loading').style.visibility = 'visible';
         if(IsMicrosoft()) this.im.style.visibility = 'hidden';
         else this.im.style.display = 'none';
-        this.im.src = this.file_info.GetImagePath();
-        this.im.onload = onload_helper;
+        this.image =  new Image();
+        
+        this.image.src  =  this.file_info.GetImagePath();
+        this.image.onload = function (){
+            onload_helper();
+            main_media.contrast = 128;
+            main_media.im.getContext('2d').drawImage(main_media.image,0,0,main_media.width_curr, main_media.height_curr);
+            main_media.DisplayWithContrast(main_media.contrast);
+        }
         wait_for_input = 0;
         edit_popup_open = 0;
     };
@@ -60,12 +68,11 @@ function image(id) {
     this.GetFileInfo = function() {
         return this.file_info;
     };
-    
+ 
     
     /** Sets the dimensions of the image based on browser setup. */
     this.SetImageDimensions = function() {
-        
-        this.SetOrigImDims(this.im);
+        this.SetOrigImDims(this.image);
         var avail_width = this.GetAvailWidth();
         var avail_height = this.GetAvailHeight();
         var width_ratio = avail_width/this.width_orig;
@@ -80,7 +87,6 @@ function image(id) {
         
         this.im.width = this.width_curr;
         this.im.height = this.height_curr;
-        
         $("#myCanvas_bg").width(this.width_curr).height(this.height_curr);
         $("#select_canvas").width(this.width_curr).height(this.height_curr);
         $("#draw_canvas").width(this.width_curr).height(this.height_curr);
@@ -159,12 +165,12 @@ function image(id) {
         // Scale and scroll the image so that the center stays in the center of the visible area
         this.ScaleFrame(amt);
         
-	// Remove polygon from draw canvas:
-	var anno = null;
-	if(draw_anno) {
-	  draw_anno.DeletePolygon();
-	  anno = draw_anno;
-	  draw_anno = null;
+    	// Remove polygon from draw canvas:
+    	var anno = null;
+    	if(draw_anno) {
+    	  draw_anno.DeletePolygon();
+    	  anno = draw_anno;
+    	  draw_anno = null;
         }
 
         // set the size of the image (this.im is the image object)
@@ -176,25 +182,39 @@ function image(id) {
         $("#draw_canvas").width(this.width_curr).height(this.height_curr);
         $("#query_canvas").width(this.width_curr).height(this.height_curr);
         
+        // Draw Image in canvas
+
+        
+        main_media.DisplayWithContrast(main_media.contrast);
         // Redraw polygons.
-	main_canvas.RenderAnnotations();
+    	main_canvas.RenderAnnotations();
 
-	if(anno) {
-	  // Draw polyline:
-	  draw_anno = anno;
-	  draw_anno.SetDivAttach('draw_canvas');
-	  draw_anno.DrawPolyLine(draw_x, draw_y);
-	}
-
-	/*************************************************************/
-	/*************************************************************/
-	// Scribble: 
-	if (drawing_mode == 1){
-	  scribble_canvas.redraw();
-	  scribble_canvas.drawMask();
+    	if(anno) {
+    	  // Draw polyline:
+    	  draw_anno = anno;
+    	  draw_anno.SetDivAttach('draw_canvas');
+    	  draw_anno.DrawPolyLine(draw_x, draw_y);
+    	}
+        if (adjust_event){
+            adjust_event.scale = main_media.GetImRatio();
+            $('#'+adjust_event.polygon_id).parent().remove();
+            adjust_event.polygon_id = adjust_event.DrawPolygon(adjust_event.dom_attach,adjust_event.x,adjust_event.y,adjust_event.obj_name,adjust_event.scale);
+            select_anno.polygon_id = this.polygon_id;
+            adjust_event.RemoveControlPoints();
+            adjust_event.RemoveCenterOfMass();
+            adjust_event.ShowCenterOfMass();
+            adjust_event.ShowControlPoints();
         }
-	/*************************************************************/
-	/*************************************************************/
+
+    	/*************************************************************/
+    	/*************************************************************/
+    	// Scribble: 
+    	if (drawing_mode == 1){
+    	  scribble_canvas.redraw();
+    	  scribble_canvas.drawMask();
+        }
+    	/*************************************************************/
+    	/*************************************************************/
     };
     
     
@@ -270,6 +290,44 @@ function image(id) {
             return false;  //the 160 is about the width of the right-side div
         return true;
     };
+	this.ObtainImagePixels = function(){
+		var c = document.getElementById('imcanvas');
+		c.width = this.width_curr;
+		c.height = this.height_curr;
+		var ctx = c.getContext('2d');
+		ctx.drawImage(this.image,0,0, main_media.width_curr, main_media.height_curr);
+		data = ctx.getImageData(0,0, c.width, c.height);
+        return data;
+	}
+    this.AugmentContrast = function(){
+        this.contrast = this.contrast + 5;
+        this.contrast = Math.min(this.contrast, 254);
+        this.DisplayWithContrast(this.contrast);
+    }
+    this.ReduceContrast = function(){
+        this.contrast = this.contrast - 5;
+        this.contrast = Math.max(this.contrast, 1);
+        this.DisplayWithContrast(this.contrast);
+    }
+	this.DisplayWithContrast = function(alpha){
+		var data_im = this.ObtainImagePixels();
+        var data = data_im.data;
+		for (var i = 0; i < data.length; i+=4){
+			for (var j = 0; j < 3; j++){
+				var elem = data[i+j];
+				if (elem < alpha){
+					var elem_new = 128*(elem/alpha)
+				}
+				else {
+					var elem_new = 128*(1+(elem - alpha)/(255-alpha));
+				}
+				data[i+j] = elem_new;
+			}
+		}
+        data_im.data = data;
+        main_media.im.getContext('2d').putImageData(data_im,0,0,0,0,main_media.width_curr, main_media.height_curr);
+
+	}
     
 }
 

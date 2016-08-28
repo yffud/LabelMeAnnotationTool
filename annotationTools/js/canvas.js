@@ -74,10 +74,15 @@ function canvas(div_attach) {
     // Render the annotations:
     for(var pp=0; pp < this.annotations.length; pp++) {
       if(!this.annotations[pp].hidden) {
-	this.annotations[pp].RenderAnnotation('rest');
+	     this.annotations[pp].RenderAnnotation('rest');
       }
     }
   };
+  this.ShadePolygons = function (){
+    for(var i=0;i<this.annotations.length;i++) {
+      this.annotations[i].ShadePolygon();
+    }
+  }
   this.GetAnnoIndex = function(id){
     var anid = -1;
     for (var i = 0; i < this.annotations.length; i++) if (this.annotations[i].anno_id == id) anid = i;
